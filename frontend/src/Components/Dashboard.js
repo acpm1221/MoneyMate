@@ -18,6 +18,8 @@ function Dashboard({ token }) {
   const [transactionType, setTransactionType] = useState('income');
   const navigate = useNavigate();
 
+  const BASE_URL = "https://moneymate-1.onrender.com";
+
   const calculateTotals = (transactions) => {
     const inc = transactions.filter(t => t.type === "income").reduce((acc, cur) => acc + cur.amount, 0);
     const exp = transactions.filter(t => t.type === "expense").reduce((acc, cur) => acc + cur.amount, 0);
@@ -28,12 +30,12 @@ function Dashboard({ token }) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const userRes = await axios.get("https://moneymate-1.onrender.com/api/users/me", {
+        const userRes = await axios.get(`${BASE_URL}/api/users/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setUser(userRes.data);
 
-        const trxRes = await axios.get("https://moneymate-1.onrender.com/api/transactions", {
+        const trxRes = await axios.get(`${BASE_URL}/api/transactions`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setTransactions(trxRes.data);
@@ -50,10 +52,9 @@ function Dashboard({ token }) {
     if (!window.confirm("Delete this transaction?")) return;
 
     try {
-      await axios.delete(`https://moneymate-1.onrender.com/api/transactions/${id}`, {
+      await axios.delete(`${BASE_URL}/api/transactions/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       const updated = transactions.filter((t) => t._id !== id);
       setTransactions(updated);
       calculateTotals(updated);
@@ -78,7 +79,7 @@ function Dashboard({ token }) {
 
   const refreshTransactions = async () => {
     try {
-      const trxRes = await axios.get("https://moneymate-1.onrender.com/api/transactions", {
+      const trxRes = await axios.get(`${BASE_URL}/api/transactions`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setTransactions(trxRes.data);
@@ -106,7 +107,11 @@ function Dashboard({ token }) {
       <div className="dashboard-header">
         <div className="user-info">
           {user.profilePic && (
-            <img className="profile-pic" src={user.profilePic} alt="Profile" />
+            <img
+              className="profile-pic"
+              src={`${BASE_URL}/${user.profilePic}`}
+              alt="Profile"
+            />
           )}
           <h1>Welcome, {user.name}</h1>
         </div>
@@ -134,7 +139,7 @@ function Dashboard({ token }) {
         </div>
       </div>
 
-      {/* Buttons */}
+      {/* Action Buttons */}
       <div className="action-buttons">
         <button className="btn income-btn" onClick={() => handleAddClick('income')}>➕ Add Income</button>
         <button className="btn expense-btn" onClick={() => handleAddClick('expense')}>➖ Add Expense</button>
@@ -209,7 +214,7 @@ function Dashboard({ token }) {
         </ul>
       </div>
 
-      {/* Sign Out Button */}
+      {/* Logout Button */}
       <button className="btn logout-btn" onClick={handleLogout}>
         Sign Out
       </button>
