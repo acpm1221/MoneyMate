@@ -1,106 +1,96 @@
 const express = require('express');
-const router = express.Router();
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const User = require('../models/User');
+const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const User = require('../models/User'); // 🛠 Correct capital "U"
 
-// Helper: Generate token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
-};
+const router = express.Router();
+const JWT_SECRET = process.env.JWT_SECRET || 'default_secret';
 
-// Helper: Protect route middleware
-const protect = async (req, res, next) => {
-  let token;
-
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    try {
-      token = req.headers.authorization.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      req.user = await User.findById(decoded.id).select('-password');
-      next();
-    } catch (error) {
-      console.error(error);
-      res.status(401).json({ message: 'Not authorized, token failed' });
-    }
-  }
-
-  if (!token) {
-    res.status(401).json({ message: 'Not authorized, no token' });
+// Auth Middleware
+const auth = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const { userId } = jwt.verify(token, JWT_SECRET);
+    req.userId = userId;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
   }
 };
 
-// @desc    Register new user
-// @route   POST /api/users/register
-// @access  Public
-router.post('/register', async (req, res) => {
-  const { name, email, password, profilePic } = req.body;
-
-  if (!name || !email || !password) {
-    return res.status(400).json({ message: 'Please fill all fields' });
+// Multer storage setup
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, '..', 'uploads');
+    if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
   }
+});
+const upload = multer({ storage });
 
-  const userExists = await User.findOne({ email });
-  if (userExists) {
-    return res.status(400).json({ message: 'User already exists' });
-  }
+// Signup
+router.post('/signup', upload.single('profilePic'), async (req, res) => {
+  const { name, email, password } = req.body;
+  if (!name || !email || !password) return res.status(400).json({ error: 'All fields required' });
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  try {
+    const existing = await User.findOne({ email });
+    if (existing) return res.status(400).json({ error: 'Email already registered' });
 
-  const user = await User.create({
-    name,
-    email,
-    password: hashedPassword,
-    profilePic,
-  });
-
-  if (user) {
-    res.status(201).json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      profilePic: user.profilePic,
-      token: generateToken(user._id),
+    const user = await User.create({
+      name,
+      email,
+      password,
+      profilePic: req.file ? req.file.filename : '',
     });
-  } else {
-    res.status(400).json({ message: 'Invalid user data' });
+
+    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token });
+  } catch (err) {
+    console.error('Signup error:', err);
+    res.status(500).json({ error: 'Server error during signup' });
   }
 });
 
-// @desc    Login user
-// @route   POST /api/users/login
-// @access  Public
+// Login
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ error: 'Invalid credentials' });
 
-  const user = await User.findOne({ email });
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(400).json({ error: 'Invalid credentials' });
 
-  if (user && (await bcrypt.compare(password, user.password))) {
-    res.json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      profilePic: user.profilePic,
-      token: generateToken(user._id),
-    });
-  } else {
-    res.status(401).json({ message: 'Invalid email or password' });
+    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Server error during login' });
   }
 });
 
+// Get User Profile
+router.get('/me', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('-password');
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-router.get('/me', protect, async (req, res) => {
-  const user = await User.findById(req.user.id);
+    if (user.profilePic) {
+      user.profilePic = `${req.protocol}://${req.get('host')}/uploads/${user.profilePic}`;
+    }
 
-  if (user) {
-    res.json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      profilePic: user.profilePic,
-    });
-  } else {
-    res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    console.error('Profile error:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
