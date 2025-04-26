@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const User = require('../models/User'); // 🛠 Correct capital "U"
+const User = require('../models/user'); // 🛠 Correct capital "U"
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'default_secret';
