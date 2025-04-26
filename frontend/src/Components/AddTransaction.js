@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import axios from 'axios';
-import BASE_URL from '../config';
 import './AddTransaction.css';
 
 function AddTransaction({ token, type, onClose, onTransactionAdded }) {
@@ -17,7 +16,7 @@ function AddTransaction({ token, type, onClose, onTransactionAdded }) {
     }
 
     try {
-      await axios.post(`${BASE_URL}/api/transactions`, {
+      await axios.post('https://moneymate-1.onrender.com/api/transactions', {
         title,
         type,
         category,
@@ -27,15 +26,58 @@ function AddTransaction({ token, type, onClose, onTransactionAdded }) {
       }, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      onTransactionAdded();
-      onClose();
+      onTransactionAdded(); // refresh dashboard
+      onClose(); // close modal
     } catch (err) {
       alert('Error adding transaction');
     }
   };
 
   return (
-    // your JSX
+    <div className="modal-overlay">
+      <div className="add-transaction-container">
+        <button className="close-btn" onClick={onClose}>×</button>
+
+        <div className="form-card">
+          <h2>MoneyMate<br />Add {type.charAt(0).toUpperCase() + type.slice(1)}</h2>
+
+          <input
+            type="text"
+            placeholder="Title*"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Category*"
+            value={category}
+            onChange={e => setCategory(e.target.value)}
+          />
+          <textarea
+            placeholder="Description"
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            rows="3"
+          />
+          <input
+            type="date"
+            value={date}
+            onChange={e => setDate(e.target.value)}
+          />
+          <input
+            type="number"
+            placeholder="Amount*"
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+          />
+
+          <div className="button-group">
+            <button className="submit-btn" onClick={handleSubmit}>Submit</button>
+            <button className="cancel-btn" onClick={onClose}>Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
